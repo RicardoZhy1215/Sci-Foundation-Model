@@ -65,6 +65,7 @@ class ModelBase(object):
             m.register_forward_pre_hook(self._forward_pre_hooks)
 
     def unregister_mask(self):
+        print("executed unmask operation")
         for m in self.model.modules():
             m._backward_hooks = OrderedDict()
             m._forward_pre_hooks = OrderedDict()

@@ -173,7 +173,28 @@ def train_once(mb, net, trainloader, testloader, writer, config, ckpt_path, lear
     lr_scheduler = PresetLRScheduler(lr_schedule)
     best_acc = 0
     best_epoch = 0
+    
     for epoch in range(num_epochs):
+        if (epoch == 1):
+            mb.unregister_mask()
+        # nonzero_count = 0
+        # total_count = 0
+        # for name, param in mb.model.named_parameters():
+        #     if name in mb.masks:
+        #         masked_param = param.data * mb.masks[name]  # 将参数与掩码相乘
+        #         nonzero_count += (masked_param != 0).sum().item()
+        #         total_count += masked_param.numel()
+        #     else:
+        #         # 如果没有掩码，直接统计该层的非零参数
+        #         nonzero_count += (param.data != 0).sum().item()
+        #         total_count += param.numel()
+
+        #     # 计算应用掩码后的非零比例
+        # nonzero_ratio = nonzero_count / total_count
+        # print(f"Total non-zero values after masking: {nonzero_count}/{total_count}")
+        # print(f"Non-zero ratio after masking: {nonzero_ratio:.2%}")
+
+           
         train(net, trainloader, optimizer, criterion, lr_scheduler, epoch, writer, iteration=iteration)
         test_acc = test(net, testloader, criterion, epoch, writer, iteration)
         if test_acc > best_acc:
@@ -220,13 +241,46 @@ def main(config):
     logger, writer = init_logger(config)
 
     # build model
+    # model = get_network(config.network, config.depth, config.dataset, use_bn=config.get('use_bn', True))
+    # mask = None
+    # mb = ModelBase(config.network, config.depth, config.dataset, model)
+    # mb.cuda()
+    # if mask is not None:
+    #     mb.register_mask(mask)
+    #     print_mask_information(mb, logger)
+
+    #build model from checkpoint
     model = get_network(config.network, config.depth, config.dataset, use_bn=config.get('use_bn', True))
-    mask = None
     mb = ModelBase(config.network, config.depth, config.dataset, model)
-    mb.cuda()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    mb = mb.cuda()
+
+    checkpoint_path = '/nfs/stak/users/zhenhaoy/GraSP/runs/pruning/cifar100/vgg19/cifar100_vgg19_GraSP_prune_ratio_0/checkpoint/finetune_cifar100_vgg19_r0.0_it0_best.pth.tar'
+    # 加载 checkpoint
+    if not os.path.exists(checkpoint_path):
+        raise FileNotFoundError(f"Checkpoint was not found: {checkpoint_path}")
+
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+
+    # 检查 checkpoint 中是否包含 'state_dict'
+    if 'state_dict' in checkpoint:
+        state_dict = checkpoint['state_dict']
+    else:
+        state_dict = checkpoint  # 假设 checkpoint 直接是 state_dict
+
+    # 将 state_dict 加载到模型中
+    mb.model.load_state_dict(state_dict, strict=False)  # strict=False 
+
+    print("Model weights are loaded")
+
+    # 如果 checkpoint 中包含 mask 信息，可以加载 mask
+    mask = checkpoint.get('mask', None)
     if mask is not None:
         mb.register_mask(mask)
         print_mask_information(mb, logger)
+    else:
+        print("Dont find mask info, skip mask reg.")
+
 
     # preprocessing
     # ====================================== get dataloader ======================================
@@ -265,8 +319,8 @@ def main(config):
                                                                                     1,
                                                                                     num_iterations))
 
-        mb.model.apply(weights_init)
-        print("=> Applying weight initialization(%s)." % config.get('init_method', 'kaiming'))
+        # mb.model.apply(weights_init)
+        # print("=> Applying weight initialization(%s)." % config.get('init_method', 'kaiming'))
         print("Iteration of: %d/%d" % (iteration, num_iterations))
         masks = GraSP(mb.model, ratio, trainloader, 'cuda',
                       num_classes=classes[config.dataset],
@@ -298,7 +352,8 @@ def main(config):
         print_mask_information(mb, logger)
         logger.info('  LR: %.5f, WD: %.5f, Epochs: %d' %
                     (learning_rates[iteration], weight_decays[iteration], training_epochs[iteration]))
-
+        
+        #mb.unregister_mask()
         # ========== finetuning =======================
         train_once(mb=mb,
                    net=mb.model,
