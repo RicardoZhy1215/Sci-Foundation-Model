@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Picking Winning Tickets Before Training by Preserving Gradient Flow
 This repo contains the official implementations of [Picking Winning Tickets Before Training by Preserving Gradient Flow](https://openreview.net/forum?id=SkgsACVKPH).
 
@@ -45,3 +46,6 @@ url={https://openreview.net/forum?id=SkgsACVKPH}
 }
 ```
 
+=======
+# Sci-Foundation-Model
+>>>>>>> 384e054d7107507a3a02a824cc74e9e8cd6319cf
