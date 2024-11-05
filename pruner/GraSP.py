@@ -146,6 +146,10 @@ def GraSP(net, ratio, train_dataloader, device, num_classes=10, samples_per_clas
     all_scores.div_(norm_factor)
 
     num_params_to_rm = int(len(all_scores) * (1-keep_ratio))
+    if num_params_to_rm == 0:
+        print("No parameters to remove. Keeping all parameters.")
+        return {m: torch.ones_like(g).float() for m, g in grads.items()}
+        
     threshold, _ = torch.topk(all_scores, num_params_to_rm, sorted=True)
     # import pdb; pdb.set_trace()
     acceptable_score = threshold[-1]
